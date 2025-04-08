@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Parking Lot System</title>
+  <script src="https://cdn.jsdelivr.net/npm/blynk-library@1.0.0/blynk.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 20px;
+    }
+    .lot-row { display: flex; margin-bottom: 10px; justify-content: center; }
+    .lot {
+      width: 140px;
+      height: 140px;
+      border: 2px solid black;
+      margin: 0 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 24px;
+      border-radius: 10px;
+    }
+    .resident { background-color: lightblue; }
+    .available { background-color: green; color: white; }
+    .occupied { background-color: red; color: white; }
+    .status-available { color: green; font-weight: bold; }
+    .status-occupied { color: red; font-weight: bold; }
+    table {
+      margin-top: 10px;
+      border-collapse: collapse;
+      width: 50%;
+      margin-left: auto;
+      margin-right: auto;
+      table-layout: fixed;
+    }
+    th, td {
+      border: 1px solid #000;
+      padding: 4px;
+      text-align: center;
+      width: 33%;
+      font-size: 20px;
+    }
+    td.license-col {
+      overflow-wrap: break-word;
+      word-break: break-word;
+      font-size: 18px;
+    }
+    h1 {
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Parking Lot Floor Plan</h1>
+
+  <!-- Floor Plan -->
+  <div class="lot-row">
+    <div class="lot resident" id="R1">R1</div>
+    <div class="lot resident" id="R2">R2</div>
+    <div class="lot resident" id="R3">R3</div>
+  </div>
+  <div class="lot-row">
+    <div class="lot available" id="G1">G1</div>
+    <div class="lot available" id="G2">G2</div>
+    <div class="lot available" id="G3">G3</div>
+    <div class="lot available" id="G4">G4</div>
+  </div>
+
+  <!-- Guest Parking Status Table -->
+  <h2 style="text-align: center;">Guest Parking Status</h2>
+  <table>
+    <thead>
+      <tr><th>Spot</th><th class="license-col">License Plate</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>G1</td><td id="plate-G1" class="license-col">N/A</td><td id="status-G1"></td></tr>
+      <tr><td>G2</td><td id="plate-G2" class="license-col">N/A</td><td id="status-G2"></td></tr>
+      <tr><td>G3</td><td id="plate-G3" class="license-col">N/A</td><td id="status-G3"></td></tr>
+      <tr><td>G4</td><td id="plate-G4" class="license-col">N/A</td><td id="status-G4"></td></tr>
+    </tbody>
+  </table>
+
+  <script>
+    const blynkToken = 'tcEtm09ysdunkNNqBUokIh48ZoRtZ-58';
+    const guestLots = [
+      { id: 'G1', platePin: 'V1', statusPin: 'V0', plate: '', status: 0 },
+      { id: 'G2', platePin: 'V4', statusPin: 'V3', plate: '', status: 0 },
+      { id: 'G3', platePin: 'V7', statusPin: 'V6', plate: '', status: 0 },
+      { id: 'G4', platePin: 'V10', statusPin: 'V9', plate: '', status: 0 }
+    ];
+
+    async function updateFromBlynk() {
+      for (const lot of guestLots) {
+        try {
+          // Fetch data for the license plate and status
+          const [plateRes, statusRes] = await Promise.all([
+            fetch(`https://blynk.cloud/external/api/get?token=${blynkToken}&${lot.platePin}`),
+            fetch(`https://blynk.cloud/external/api/get?token=${blynkToken}&${lot.statusPin}`)
+          ]);
+
+          // Read the responses (plate and status)
+          const plate = await plateRes.text();
+          const status = await statusRes.text(); // Read status as a string
+
+          // Update the lot status
+          lot.plate = plate;
+          lot.status = status;
+
+          // Update the webpage with the correct status
+          updateLotStatus(lot.id, plate, status);
+
+        } catch (error) {
+          console.warn(`Failed to fetch data for ${lot.id}. Keeping previous state.`);
+          updateLotStatus(lot.id, lot.plate, lot.status);
+        }
+      }
+    }
+
+    // Function to update the status of each lot on the webpage
+    function updateLotStatus(lotId, plate, status) {
+      document.getElementById(`plate-${lotId}`).innerText = plate || 'N/A';
+      const statusCell = document.getElementById(`status-${lotId}`);
+
+      if (status === '1') {
+        statusCell.innerText = 'Occupied';
+        statusCell.className = 'status-occupied';
+        document.getElementById(lotId).className = 'lot occupied';
+      } else {
+        statusCell.innerText = 'Available';
+        statusCell.className = 'status-available';
+        document.getElementById(lotId).className = 'lot available';
+      }
+    }
+
+    // Initial draw for the parking lot status
+    guestLots.forEach(lot => updateLotStatus(lot.id, lot.plate, lot.status));
+
+    // Poll every 10 seconds to update the status from Blynk
+    updateFromBlynk();
+    setInterval(updateFromBlynk, 10000);
+  </script>
+</body>
+</html>
